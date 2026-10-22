@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>VSL Quest - Game Học Ngôn Ngữ Ký Hiệu Việt Nam</title>
+
+  <!-- Thư viện Google MediaPipe Hands -->
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+
+  <style>
+    :root {
+      --primary: #58cc02;
+      --primary-dark: #46a302;
+      --secondary: #1cb0f6;
+      --bg: #f7f9fa;
+      --card: #ffffff;
+      --text: #3c3c3c;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      display: flex;
+      justify-content: center;
+      min-height: 100vh;
+    }
+
+    /* Khung màn hình điện thoại */
+    .mobile-container {
+      width: 100%;
+      max-width: 450px;
+      background: var(--card);
+      min-height: 100vh;
+      box-shadow: 0 0 20px rgba(0,0,0,0.1);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* Thanh trạng thái trên cùng */
+    .header {
+      padding: 15px 20px;
+      background: var(--card);
+      border-bottom: 2px solid #e5e5e5;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .title {
+      font-size: 1.2rem;
+      font-weight: 800;
+      color: var(--primary);
+    }
+
+    .stats {
+      display: flex;
+      gap: 12px;
+      font-weight: bold;
+    }
+
+    .badge-xp {
+      background: #fff3cd;
+      color: #ff9600;
+      padding: 5px 12px;
+      border-radius: 20px;
+      font-size: 0.9rem;
+    }
+
+    /* Chuyển đổi chế độ chơi */
+    .tabs {
+      display: flex;
+      padding: 10px 15px;
+      gap: 10px;
+      background: #f0f2f5;
+    }
+
+    .tab-btn {
+      flex: 1;
+      padding: 10px;
+      border: none;
+      border-radius: 12px;
+      font-weight: bold;
+      cursor: pointer;
+      background: #e4e6eb;
+      color: #65676b;
+      transition: 0.2s;
+    }
+
+    .tab-btn.active {
+      background: var(--secondary);
+      color: white;
+    }
+
+    /* Nội dung chính */
+    .game-area {
+      flex: 1;
+      padding: 15px;
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+    }
+
+    .prompt-card {
+      background: #eef9ff;
+      border: 2px solid #bce8ff;
+      border-radius: 16px;
+      padding: 15px;
+      text-align: center;
+    }
+
+    .prompt-sign {
+      font-size: 2rem;
+      font-weight: 900;
+      color: var(--secondary);
+      margin: 5px 0;
+    }
+
+    .prompt-desc {
+      font-size: 0.95rem;
+      color: #555;
+      line-height: 1.4;
+    }
+
+    /* Khu vực Camera AI */
+    .camera-wrapper {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 4 / 3;
+      background: #111;
+      border-radius: 16px;
+      overflow: hidden;
+      border: 3px solid #e5e5e5;
+    }
+
+    video {
+      display: none;
+    }
+
+    canvas {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transform: scaleX(-1); /* Lật gương camera trước */
+    }
+
+    .ai-status {
+      position: absolute;
+      bottom: 10px;
+      left: 10px;
+      right: 10px;
+      background: rgba(0, 0, 0, 0.7);
+      color: #fff;
+      padding: 8px 12px;
+      border-radius: 10px;
+      font-size: 0.9rem;
+      text-align: center;
+    }
+
+    /* Thanh giữ động tác (Hold Progress) */
+    .progress-bar-bg {
+      width: 100%;
+      height: 14px;
+      background: #e5e5e5;
+      border-radius: 10px;
+      overflow: hidden;
+    }
+
+    .progress-bar-fill {
+      height: 100%;
+      width: 0%;
+      background: var(--primary);
+      transition: width 0.1s linear;
+    }
+
+    /* Nút bấm */
+    .btn-primary {
+      width: 100%;
+      padding: 14px;
+      border: none;
+      border-radius: 14px;
+      background: var(--primary);
+      border-bottom: 4px solid var(--primary-dark);
+      color: white;
+      font-size: 1rem;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    .btn-primary:active {
+      transform: translateY(2px);
+      border-bottom-width: 2px;
+    }
+
+    /* Chế độ Trắc nghiệm */
+    .quiz-options {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-top: 10px;
+    }
+
+    .option-btn {
+      padding: 18px 10px;
+      border: 2px solid #e5e5e5;
+      border-bottom: 4px solid #d0d0d0;
+      border-radius: 14px;
+      background: white;
+      font-size: 1.1rem;
+      font-weight: bold;
+      cursor: pointer;
+      transition: 0.15s;
+    }
+
+    .option-btn.correct {
+      background: #d7ffb8;
+      border-color: var(--primary);
+      color: var(--primary-dark);
+    }
+
+    .option-btn.wrong {
+      background: #ffdfe0;
+      border-color: #ff4b4b;
+      color: #ea2b2b;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+  </style>
+</head>
+<body>
+
+<div class="mobile-container">
+  <!-- Header -->
+  <div class="header">
+    <div class="title">🤟 VSL Quest</div>
+    <div class="stats">
+      <div class="badge-xp">⭐ <span id="xp-score">0</span> XP</div>
+    </div>
+  </div>
+
+  <!-- Chọn chế độ chơi -->
+  <div class="tabs">
+    <button class="tab-btn active" onclick="switchMode('camera')">📷 Thực hành AI</button>
+    <button class="tab-btn" onclick="switchMode('quiz')">🧩 Trắc nghiệm</button>
+  </div>
+
+  <!-- CHẾ ĐỘ 1: THỰC HÀNH CAMERA AI -->
+  <div id="camera-mode" class="game-area">
+    <div class="prompt-card">
+      <div>Hãy thực hiện ký hiệu:</div>
+      <div class="prompt-sign" id="target-sign-title">Chữ B</div>
+      <div class="prompt-desc" id="target-sign-desc">
+        Giơ thẳng và khép 4 ngón tay (trỏ, giữa, áp út, út), gập ngón cái vào lòng bàn tay.
+      </div>
+    </div>
+
+    <div class="camera-wrapper">
+      <video id="input-video" playsinline></video>
+      <canvas id="output-canvas" width="480" height="360"></canvas>
+      <div class="ai-status" id="ai-feedback">Đang tải mô hình AI...</div>
+    </div>
+
+    <div>
+      <div style="font-size: 0.85rem; margin-bottom: 5px; font-weight: bold;">
+        Độ chính xác (Giữ nguyên tay 1.5 giây để qua màn):
+      </div>
+      <div class="progress-bar-bg">
+        <div class="progress-bar-fill" id="hold-progress"></div>
+      </div>
+    </div>
+
+    <button class="btn-primary" onclick="nextCameraLevel()">Bỏ qua / Đổi ký hiệu khác ➔</button>
+  </div>
+
+  <!-- CHẾ ĐỘ 2: TRẮC NGHIỆM GHI NHỚ -->
+  <div id="quiz-mode" class="game-area hidden">
+    <div class="prompt-card">
+      <div>Đố bạn mô tả sau đây là ký hiệu nào?</div>
+      <div class="prompt-sign" id="quiz-emoji" style="font-size: 3.5rem;">✊</div>
+      <div class="prompt-desc" id="quiz-question">
+        Nắm các ngón tay lại, chỉ duỗi thẳng ngón út hướng lên trên.
+      </div>
+    </div>
+
+    <div class="quiz-options" id="quiz-options"></div>
+    <div id="quiz-feedback" style="text-align:center; font-weight:bold; min-height:24px;"></div>
+    <button class="btn-primary" onclick="loadNextQuiz()">Câu tiếp theo ➔</button>
+  </div>
+</div>
+
+<script>
+  // ================= DỮ LIỆU KÝ HIỆU TIẾNG VIỆT =================
+  const vslLevels = [
+    {
+      id: "B",
+      title: "Chữ B",
+      emoji: "✋",
+      desc: "Duỗi thẳng 4 ngón (trỏ, giữa, áp út, út), gập ngón cái vào lòng bàn tay."
+    },
+    {
+      id: "V",
+      title: "Chữ V (Hoặc Số 2)",
+      emoji: "✌️",
+      desc: "Duỗi thẳng ngón trỏ và ngón giữa tạo thành chữ V, các ngón còn lại nắm lại."
+    },
+    {
+      id: "I",
+      title: "Chữ I",
+      emoji: " pinky",
+      desc: "Nắm bàn tay lại, chỉ giơ thẳng duy nhất ngón út lên trên."
+    },
+    {
+      id: "Y",
+      title: "Chữ Y",
+      emoji: "🤙",
+      desc: "Xoè ngón cái và ngón út ra hai bên, gập 3 ngón giữa (trỏ, giữa, áp út) vào lòng bàn tay."
+    },
+    {
+      id: "A",
+      title: "Chữ A",
+      emoji: "✊",
+      desc: "Nắm 4 ngón tay lại, ngón cái duỗi thẳng áp sát cạnh ngón trỏ."
+    },
+    {
+      id: "HELLO",
+      title: "Xin chào / Số 5",
+      emoji: "🖐️",
+      desc: "Xoè rộng cả 5 ngón tay hướng về phía trước."
+    }
+  ];
+
+  let xp = 0;
+  let currentLevelIndex = 0;
+  let holdCounter = 0;
+  const HOLD_REQUIRED = 25; // Số khung hình giữ đúng liên tiếp (~1.5 giây)
+
+  // Cập nhật điểm XP
+  function addXP(amount) {
+    xp += amount;
+    document.getElementById("xp-score").innerText = xp;
+  }
+
+  // Chuyển tab
+  function switchMode(mode) {
+    const btns = document.querySelectorAll(".tab-btn");
+    btns[0].classList.toggle("active", mode === "camera");
+    btns[1].classList.toggle("active", mode === "quiz");
+
+    document.getElementById("camera-mode").classList.toggle("hidden", mode !== "camera");
+    document.getElementById("quiz-mode").classList.toggle("hidden", mode !== "quiz");
+
+    if (mode === "quiz") loadNextQuiz();
+  }
+
+  // ================= LOGIC CHẾ ĐỘ CAMERA AI =================
+  function loadCameraLevel() {
+    const level = vslLevels[currentLevelIndex];
+    document.getElementById("target-sign-title").innerText = level.title;
+    document.getElementById("target-sign-desc").innerText = level.desc;
+    holdCounter = 0;
+    updateProgressBar(0);
+  }
+
+  function nextCameraLevel() {
+    currentLevelIndex = (currentLevelIndex + 1) % vslLevels.length;
+    loadCameraLevel();
+  }
+
+  function updateProgressBar(percent) {
+    document.getElementById("hold-progress").style.width = `${Math.min(100, percent)}%`;
+  }
+
+  // Hàm kiểm tra ngón tay duỗi hay gập từ 21 điểm khớp MediaPipe
+  function detectGesture(landmarks) {
+    // Kiểm tra 4 ngón dài: Đầu ngón (TIP) cao hơn khớp giữa (PIP) -> y nhỏ hơn
+    const indexOpen  = landmarks[8].y < landmarks[6].y;
+    const middleOpen = landmarks[12].y < landmarks[10].y;
+    const ringOpen   = landmarks[16].y < landmarks[14].y;
+    const pinkyOpen  = landmarks[20].y < landmarks[18].y;
+
+    // Kiểm tra ngón cái mở: Khoảng cách từ đầu ngón cái (4) đến gốc ngón út (17)
+    const thumbToPinkyDist = Math.hypot(landmarks[4].x - landmarks[17].x, landmarks[4].y - landmarks[17].y);
+    const indexMcpToPinkyDist = Math.hypot(landmarks[5].x - landmarks[17].x, landmarks[5].y - landmarks[17].y);
+    const thumbOpen = thumbToPinkyDist > indexMcpToPinkyDist * 1.3;
+    const thumbUp   = landmarks[4].y < landmarks[3].y;
+
+    if (!thumbOpen && indexOpen && middleOpen && ringOpen && pinkyOpen) return "B";
+    if (thumbOpen && indexOpen && middleOpen && ringOpen && pinkyOpen) return "HELLO";
+    if (!thumbOpen && indexOpen && middleOpen && !ringOpen && !pinkyOpen) return "V";
+    if (!indexOpen && !middleOpen && !ringOpen && pinkyOpen && !thumbOpen) return "I";
+    if (thumbOpen && !indexOpen && !middleOpen && !ringOpen && pinkyOpen) return "Y";
+    if (thumbUp && !indexOpen && !middleOpen && !ringOpen && !pinkyOpen) return "A";
+
+    return "UNKNOWN";
+  }
+
+  // Khởi tạo MediaPipe Hands
+  const videoElement = document.getElementById("input-video");
+  const canvasElement = document.getElementById("output-canvas");
+  const canvasCtx = canvasElement.getContext("2d");
+  const feedbackEl = document.getElementById("ai-feedback");
+
+  function onResults(results) {
+    canvasCtx.save();
+    canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+    canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
+
+    if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+      const landmarks = results.multiHandLandmarks[0];
+
+      // Vẽ xương bàn tay lên màn hình
+      drawConnectors(canvasCtx, landmarks, HAND_CONNECTIONS, { color: "#00FF00", lineWidth: 4 });
+      drawLandmarks(canvasCtx, landmarks, { color: "#FF0000", lineWidth: 2, radius: 3 });
+
+      const detected = detectGesture(landmarks);
+      const target = vslLevels[currentLevelIndex].id;
+
+      if (detected === target) {
+        holdCounter++;
+        const percent = (holdCounter / HOLD_REQUIRED) * 100;
+        updateProgressBar(percent);
+        feedbackEl.innerText = `✅ Chính xác! Giữ nguyên tay nhé... (${Math.round(percent)}%)`;
+        feedbackEl.style.background = "rgba(70, 163, 2, 0.85)";
+
+        if (holdCounter >= HOLD_REQUIRED) {
+          addXP(20);
+          feedbackEl.innerText = `🎉 Tuyệt vời! +20 XP. Chuyển sang ký hiệu tiếp theo!`;
+          holdCounter = 0;
+          setTimeout(nextCameraLevel, 800);
+        }
+      } else {
+        holdCounter = Math.max(0, holdCounter - 1);
+        updateProgressBar((holdCounter / HOLD_REQUIRED) * 100);
+        feedbackEl.innerText = `🤖 AI đang nhận thấy: ${detected === "UNKNOWN" ? "Chưa rõ ký hiệu" : "Ký hiệu " + detected}`;
+        feedbackEl.style.background = "rgba(0, 0, 0, 0.7)";
+      }
+    } else {
+      feedbackEl.innerText = "✋ Hãy đưa bàn tay vào khung hình camera";
+      feedbackEl.style.background = "rgba(0, 0, 0, 0.7)";
+    }
+    canvasCtx.restore();
+  }
+
+  const hands = new Hands({
+    locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+  });
+
+  hands.setOptions({
+    maxNumHands: 1,
+    modelComplexity: 1,
+    minDetectionConfidence: 0.6,
+    minTrackingConfidence: 0.6
+  });
+  hands.onResults(onResults);
+
+  const camera = new Camera(videoElement, {
+    onFrame: async () => {
+      await hands.send({ image: videoElement });
+    },
+    width: 480,
+    height: 360
+  });
+  camera.start();
+
+  // ================= LOGIC CHẾ ĐỘ TRẮC NGHIỆM =================
+  function loadNextQuiz() {
+    const feedback = document.getElementById("quiz-feedback");
+    feedback.innerText = "";
+
+    const correctItem = vslLevels[Math.floor(Math.random() * vslLevels.length)];
+    document.getElementById("quiz-emoji").innerText = correctItem.emoji;
+    document.getElementById("quiz-question").innerText = correctItem.desc;
+
+    // Tạo 4 đáp án ngẫu nhiên
+    const shuffled = [...vslLevels].sort(() => 0.5 - Math.random()).slice(0, 4);
+    if (!shuffled.includes(correctItem)) shuffled[0] = correctItem;
+    shuffled.sort(() => 0.5 - Math.random());
+
+    const optionsContainer = document.getElementById("quiz-options");
+    optionsContainer.innerHTML = "";
+
+    shuffled.forEach(item => {
+      const btn = document.createElement("button");
+      btn.className = "option-btn";
+      btn.innerText = item.title;
+      btn.onclick = () => {
+        if (item.id === correctItem.id) {
+          btn.classList.add("correct");
+          feedback.style.color = "#46a302";
+          feedback.innerText = "🎉 Chính xác! +10 XP";
+          addXP(10);
+        } else {
+          btn.classList.add("wrong");
+          feedback.style.color = "#ea2b2b";
+          feedback.innerText = `❌ Chưa đúng! Đáp án là: ${correctItem.title}`;
+        }
+      };
+      optionsContainer.appendChild(btn);
+    });
+  }
+
+  // Khởi chạy màn đầu tiên
+  loadCameraLevel();
+</script>
+</body>
+</html>
